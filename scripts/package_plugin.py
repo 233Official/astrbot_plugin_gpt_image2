@@ -35,6 +35,7 @@ PACKAGE_DIRS = [
 
 PACKAGE_DOC_DIRS = [
     "docs",
+    "skills",
 ]
 
 

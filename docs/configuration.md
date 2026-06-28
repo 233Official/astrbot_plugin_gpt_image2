@@ -34,12 +34,43 @@
 | `primary_provider_name` | `primary` | 主站在日志和 `/image2 providers` 中展示的名称 |
 | `api_key` | - | 主站 API Key |
 | `base_url` | `https://api.openai.com/v1` | 主站 API Base URL |
+| `provider_url_display` | `masked` | `/image2 help` 与 `/image2 providers` 中站点 Base URL 的展示方式 |
+| `primary_url_display` | `` | 主站 URL 展示方式覆盖；留空继承 `provider_url_display` |
 | `model` | `gpt-image-2` | 主站 Images API 模型 |
 | `responses_model` | `gpt-5.5` | 主站 Responses API 模型 |
 | `primary_billing_json` | `{}` | 主站费用观测配置，详见 [费用观测配置](./billing.md) |
 | `primary_force_single_image_requests` | `false` | 本次任务全局 `n > 1` 且命中主站 Provider 时，强制拆成多次 `n=1` 上游请求 |
 
 主站统计身份绑定 `base_url`，不绑定展示名或模型名。
+
+---
+
+## 站点 URL 展示控制
+
+`provider_url_display` 用于控制 `/image2 help` 与 `/image2 providers` 是否展示
+站点 Base URL 的全局默认策略，适合自部署站点避免暴露服务器 IP 和端口。
+主站、每个备用站和权威兜底站点都可以单独覆盖。
+
+网络错误、上游错误响应预览和站点切换失败提示中的 URL 会始终脱敏，
+不受 `provider_url_display=full` 影响。
+
+| 值 | 行为 |
+| --- | --- |
+| `masked` | 默认值。掩码显示 URL，隐藏域名/IP/端口，仅保留协议和路径，例如 `https://***/v1` |
+| `hidden` | 不显示 URL 行 |
+| `full` | 完整显示 URL，仅建议在可信环境中使用 |
+
+展示策略优先级：
+
+```text
+单站点覆盖 > 角色级覆盖 > 全局 provider_url_display > 默认 masked
+```
+
+对应配置：
+
+- 主站：`primary_url_display`
+- 普通备用站点：`fallback_api_providers[].url_display`
+- 权威兜底：`authoritative_fallback_url_display`
 
 ---
 
@@ -74,6 +105,7 @@
     "api_key": "<api-key>",
     "capabilities": "images",
     "model": "gpt-image-2",
+    "url_display": "hidden",
     "force_single_image_requests": true,
     "billing": {
       "total_url": "https://www.micuapi.ai/dashboard/billing/subscription",
@@ -116,6 +148,7 @@
 | `model` | Images API 模型 |
 | `responses_model` | Responses API 模型 |
 | `adaptive` | 是否参与自适应排序，默认参与 |
+| `url_display` | 可选；`masked` / `hidden` / `full`，省略时继承 `provider_url_display` |
 | `force_single_image_requests` | 本次任务全局 `n > 1` 且命中该 Provider 时，是否强制拆成多次 `n=1` 上游请求 |
 | `billing` | 该 Provider 的费用观测配置；支持直接余额、总额减用量和固定参考成本，详见 [费用观测配置](./billing.md) |
 
@@ -135,6 +168,7 @@
 | `authoritative_fallback_name` | 站点显示名 |
 | `authoritative_fallback_api_key` | 独立 API Key；留空复用主站 Key |
 | `authoritative_fallback_base_url` | 独立 Base URL；留空复用主站 Base URL |
+| `authoritative_fallback_url_display` | URL 展示方式覆盖；留空继承 `provider_url_display` |
 | `authoritative_fallback_images_model` | Images API 模型；留空表示不支持 Images |
 | `authoritative_fallback_responses_model` | Responses API 模型；留空表示不支持 Responses |
 | `authoritative_fallback_billing_json` | 费用观测配置，详见 [费用观测配置](./billing.md) |
@@ -172,6 +206,8 @@
 | --- | --- | --- | --- |
 | `api_key` | string | - | 主站 API Key |
 | `base_url` | string | `https://api.openai.com/v1` | 主站 API Base URL |
+| `provider_url_display` | string | `masked` | 站点 URL 展示方式：`masked` / `hidden` / `full` |
+| `primary_url_display` | string | `` | 主站 URL 展示覆盖，空表示继承全局 |
 | `api_mode` | string | `images` | 全局 API 模式：`images` / `responses` |
 | `primary_provider_name` | string | `primary` | 主站点显示名称 |
 | `primary_billing_json` | text/json | `{}` | 主站费用观测配置 |
@@ -185,6 +221,7 @@
 | `authoritative_fallback_name` | string | `authoritative-fallback` | 权威兜底站点名称 |
 | `authoritative_fallback_api_key` | string | `` | 权威兜底 API Key |
 | `authoritative_fallback_base_url` | string | `` | 权威兜底 Base URL |
+| `authoritative_fallback_url_display` | string | `` | 权威兜底 URL 展示覆盖，空表示继承全局 |
 | `authoritative_fallback_images_model` | string | `` | 权威兜底 Images 模型，空表示不支持 |
 | `authoritative_fallback_responses_model` | string | `` | 权威兜底 Responses 模型，空表示不支持 |
 | `authoritative_fallback_billing_json` | text/json | `{}` | 权威兜底费用观测配置 |

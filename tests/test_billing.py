@@ -28,7 +28,10 @@ from image2_core.providers.manager import (  # noqa: E402
     ProviderManager,
     migrate_fallback_api_providers_json_text,
 )
-from image2_core.providers.messages import build_providers_status_markdown  # noqa: E402
+from image2_core.providers.messages import (  # noqa: E402
+    build_providers_status_markdown,
+    format_provider_url_for_display,
+)
 
 
 def fake_openai_key(suffix: str) -> str:
@@ -611,6 +614,144 @@ class TestBillingMessages(unittest.TestCase):
 
         self.assertIn("计费：fixed", markdown)
         self.assertIn("成功单张 0.03 USD", markdown)
+
+    def test_provider_url_display_defaults_to_masked(self):
+        manager = ProviderManager(
+            {
+                "api_key": fake_openai_key("test"),
+                "base_url": "http://192.0.2.10:8080/v1",
+            },
+            "test-plugin",
+        )
+        provider = manager.get_image_api_provider_configs()[0]
+
+        markdown = build_providers_status_markdown(
+            [provider],
+            {},
+            global_mode="images",
+            now=0,
+            billing_stats={},
+        )
+
+        self.assertIn("URL：`http://***/v1`", markdown)
+        self.assertNotIn("192.0.2.10", markdown)
+        self.assertNotIn("8080", markdown)
+
+    def test_provider_url_display_can_hide_or_show_full_url(self):
+        manager = ProviderManager(
+            {
+                "api_key": fake_openai_key("test"),
+                "base_url": "http://192.0.2.10:8080/v1",
+            },
+            "test-plugin",
+        )
+        provider = manager.get_image_api_provider_configs()[0]
+
+        hidden_markdown = build_providers_status_markdown(
+            [provider],
+            {},
+            global_mode="images",
+            now=0,
+            billing_stats={},
+            url_display="hidden",
+        )
+        full_markdown = build_providers_status_markdown(
+            [provider],
+            {},
+            global_mode="images",
+            now=0,
+            billing_stats={},
+            url_display="full",
+        )
+
+        self.assertNotIn("URL：", hidden_markdown)
+        self.assertIn("URL：`http://192.0.2.10:8080/v1`", full_markdown)
+
+    def test_provider_url_display_supports_per_provider_override(self):
+        manager = ProviderManager(
+            {
+                "api_key": fake_openai_key("test"),
+                "base_url": "http://192.0.2.10:8080/v1",
+                "adaptive_provider_priority": False,
+                "provider_url_display": "masked",
+                "primary_url_display": "hidden",
+                "fallback_api_providers": json.dumps(
+                    [
+                        {
+                            "name": "public-backup",
+                            "base_url": "https://public.example.com/v1",
+                            "url_display": "full",
+                        },
+                    ]
+                ),
+                "authoritative_fallback_enabled": True,
+                "authoritative_fallback_name": "auth-private",
+                "authoritative_fallback_base_url": "http://203.0.113.7:9000/v1",
+                "authoritative_fallback_images_model": "gpt-image-2",
+                "authoritative_fallback_url_display": "hidden",
+            },
+            "test-plugin",
+        )
+        providers = manager.get_image_api_provider_configs()
+
+        markdown = build_providers_status_markdown(
+            providers,
+            {},
+            global_mode="images",
+            now=0,
+            billing_stats={},
+            url_display="masked",
+        )
+
+        self.assertIn("URL：`https://public.example.com/v1`", markdown)
+        self.assertNotIn("192.0.2.10", markdown)
+        self.assertNotIn("203.0.113.7", markdown)
+        self.assertNotIn("8080", markdown)
+        self.assertNotIn("9000", markdown)
+
+    def test_invalid_provider_url_display_override_inherits_global(self):
+        manager = ProviderManager(
+            {
+                "api_key": fake_openai_key("test"),
+                "base_url": "https://primary.example/v1",
+                "adaptive_provider_priority": False,
+                "fallback_api_providers": json.dumps(
+                    [
+                        {
+                            "name": "backup",
+                            "base_url": "http://198.51.100.9:3000/v1",
+                            "url_display": "invalid",
+                        }
+                    ]
+                ),
+            },
+            "test-plugin",
+        )
+        provider = [
+            item
+            for item in manager.get_image_api_provider_configs()
+            if item.name == "backup"
+        ][0]
+
+        self.assertEqual(provider.url_display, "")
+
+        markdown = build_providers_status_markdown(
+            [provider],
+            {},
+            global_mode="images",
+            now=0,
+            billing_stats={},
+            url_display="full",
+        )
+
+        self.assertIn("URL：`http://198.51.100.9:3000/v1`", markdown)
+
+    def test_format_provider_url_for_display_masks_host_port_and_query(self):
+        result = format_provider_url_for_display(
+            "https://user:pass@self-hosted.example:8443/v1?token=secret", "masked"
+        )
+
+        self.assertEqual(result, "https://***/v1")
 
     def test_providers_status_shows_balance_fixed_fallback(self):
         manager = ProviderManager(

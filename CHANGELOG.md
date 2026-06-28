@@ -6,6 +6,26 @@
 
 ---
 
+## v0.5.1 - 2026-06-25
+
+### v0.5.1 Added
+
+- 新增 `provider_url_display` 配置，用于控制 `/image2 help` 与
+  `/image2 providers` 中生图站点 Base URL 的展示方式，支持 `masked`、
+  `hidden` 和 `full`。
+- 新增 `primary_url_display`、`fallback_api_providers[].url_display` 和
+  `authoritative_fallback_url_display`，可分别覆盖主站、普通备用站点和
+  权威兜底站点的 URL 展示方式。
+
+### v0.5.1 Fixed
+
+- 用户可见错误消息中的请求 URL、裸 `ip:port` 和 `host:port` 现在会脱敏，
+  避免自部署站点在网络错误、上游错误响应预览和站点切换失败提示中暴露
+  服务器 IP 或端口。
+- 升级版本至 0.5.1。
+
+---
+
 ## v0.5.0 - 2026-06-10
 
 ### v0.5.0 Added

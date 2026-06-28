@@ -11,6 +11,14 @@
     "default": "https://api.openai.com/v1",
     "hint": "例如 https://api.example.com/v1，不要以 images/generations 结尾"
   },
+  "provider_url_display": {
+    "description": "站点 URL 展示方式",
+    "type": "string",
+    "default": "masked",
+    "options": ["masked", "hidden", "full"],
+    "labels": ["掩码显示", "不显示", "完整显示"],
+    "hint": "控制 /image2 help 与 /image2 providers 是否展示站点 Base URL 的全局默认策略。masked 会隐藏域名/IP/端口，仅保留协议和路径；hidden 不显示 URL 行；full 完整显示，仅建议在可信环境中使用。主站可用 primary_url_display 覆盖，备用站可在 fallback_api_providers 每项中配置 url_display 覆盖，权威兜底可用 authoritative_fallback_url_display 覆盖。"
+  },
   "api_mode": {
     "description": "全局 API 模式",
     "type": "string",
@@ -33,6 +41,14 @@
     "type": "string",
     "default": "primary",
     "hint": "日志、切换通知与 /image2 providers 中的主站点名称"
+  },
+  "primary_url_display": {
+    "description": "主站 URL 展示方式覆盖",
+    "type": "string",
+    "default": "",
+    "options": ["", "masked", "hidden", "full"],
+    "labels": ["继承全局", "掩码显示", "不显示", "完整显示"],
+    "hint": "可选。留空时继承 provider_url_display；设置后仅覆盖主站在 /image2 help 与 /image2 providers 中的 Base URL 展示方式。"
   },
   "primary_billing_json": {
     "description": "主站点费用观测 JSON",
@@ -68,7 +84,7 @@
     "editor_language": "json",
     "editor_theme": "vs-dark",
     "default": "[]",
-    "hint": "破坏式更新：这里必须填写 JSON 数组，不再支持只填 URL 或 key=value 字符串。每个元素是一个备用站点对象。示例：[{\"name\":\"backup-1\",\"base_url\":\"https://api-backup.example.com/v1\",\"api_key\":\"<api-key>\",\"capabilities\":\"images\",\"model\":\"gpt-image-2\",\"force_single_image_requests\":true,\"billing\":{\"success_cost\":0.2,\"currency\":\"CNY\"}}]。api_key/model/responses_model 可省略并继承主站；capabilities 可选 images/responses/all/both，默认 all。force_single_image_requests 开启后，当本次任务全局 n>1 且命中该 Provider 时，会拆成多次 n=1 上游请求；全局 n=2 时仍可能返回 2 张图，只是不发送原生 n=2。权威兜底请使用独立配置项 authoritative_fallback_*。"
+    "hint": "破坏式更新：这里必须填写 JSON 数组，不再支持只填 URL 或 key=value 字符串。每个元素是一个备用站点对象。示例：[{\"name\":\"backup-1\",\"base_url\":\"https://api-backup.example.com/v1\",\"api_key\":\"<api-key>\",\"capabilities\":\"images\",\"model\":\"gpt-image-2\",\"url_display\":\"hidden\",\"force_single_image_requests\":true,\"billing\":{\"success_cost\":0.2,\"currency\":\"CNY\"}}]。api_key/model/responses_model 可省略并继承主站；capabilities 可选 images/responses/all/both，默认 all。url_display 可选 masked/hidden/full，留空或省略时继承 provider_url_display。force_single_image_requests 开启后，当本次任务全局 n>1 且命中该 Provider 时，会拆成多次 n=1 上游请求；全局 n=2 时仍可能返回 2 张图，只是不发送原生 n=2。权威兜底请使用独立配置项 authoritative_fallback_*。"
   },
   "authoritative_fallback_enabled": {
     "description": "启用权威兜底站点",
@@ -89,6 +105,14 @@
     "description": "权威兜底 Base URL（留空复用主 base_url）",
     "type": "string",
     "default": ""
+  },
+  "authoritative_fallback_url_display": {
+    "description": "权威兜底 URL 展示方式覆盖",
+    "type": "string",
+    "default": "",
+    "options": ["", "masked", "hidden", "full"],
+    "labels": ["继承全局", "掩码显示", "不显示", "完整显示"],
+    "hint": "可选。留空时继承 provider_url_display；设置后仅覆盖权威兜底站点在 /image2 providers 中的 Base URL 展示方式。"
   },
   "authoritative_fallback_images_model": {
     "description": "权威兜底 Images API 模型（留空=不支持 Images 模式）",

@@ -9,10 +9,64 @@
 
 from __future__ import annotations
 
+from typing import Any
+from urllib.parse import urlparse
+
 from .manager import ImageAPIProviderConfig
 
 
-def _format_money(value: object, currency: str = "") -> str:
+PROVIDER_URL_DISPLAY_FULL = "full"
+PROVIDER_URL_DISPLAY_MASKED = "masked"
+PROVIDER_URL_DISPLAY_HIDDEN = "hidden"
+PROVIDER_URL_DISPLAY_MODES = {
+    PROVIDER_URL_DISPLAY_FULL,
+    PROVIDER_URL_DISPLAY_MASKED,
+    PROVIDER_URL_DISPLAY_HIDDEN,
+}
+
+
+def normalize_provider_url_display(value: object) -> str:
+    """规范化站点 URL 展示策略。"""
+    mode = str(value or "").strip().lower()
+    if mode in PROVIDER_URL_DISPLAY_MODES:
+        return mode
+    return PROVIDER_URL_DISPLAY_MASKED
+
+
+def resolve_provider_url_display(
+    provider: ImageAPIProviderConfig, fallback: object
+) -> str:
+    """Resolve provider-level override before the global fallback."""
+    override = str(getattr(provider, "url_display", "") or "").strip().lower()
+    if override in PROVIDER_URL_DISPLAY_MODES:
+        return override
+    return normalize_provider_url_display(fallback)
+
+
+def format_provider_url_for_display(
+    base_url: object, mode: object = None
+) -> str | None:
+    """按配置格式化 Provider Base URL，返回 ``None`` 表示不显示 URL 行。"""
+    display_mode = normalize_provider_url_display(mode)
+    if display_mode == PROVIDER_URL_DISPLAY_HIDDEN:
+        return None
+
+    raw_url = str(base_url or "").strip()
+    if not raw_url:
+        return "未设置"
+    if display_mode == PROVIDER_URL_DISPLAY_FULL:
+        return raw_url
+
+    try:
+        parsed = urlparse(raw_url)
+        if parsed.scheme:
+            return f"{parsed.scheme}://***{parsed.path or ''}"
+    except Exception:
+        pass
+    return "***"
+
+
+def _format_money(value: Any, currency: str = "") -> str:
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -28,8 +82,10 @@ def build_providers_status_markdown(
     global_mode: str,
     now: float,
     billing_stats: dict | None = None,
+    url_display: str = PROVIDER_URL_DISPLAY_MASKED,
 ) -> str:
     """构建 ``/image2 providers`` 命令的 Markdown 状态展示。"""
+    url_display = normalize_provider_url_display(url_display)
     primary = [c for c in configs if c.role == "primary"]
     normal = [c for c in configs if c.role == "normal"]
     authoritative = [c for c in configs if c.role == "authoritative_fallback"]
@@ -120,6 +176,15 @@ def build_providers_status_markdown(
             parts.append(f"累计 {_format_money(total_cost, p.billing.currency)}")
         return "，".join(parts)
 
+    def _url_line(p: ImageAPIProviderConfig, prefix: str) -> str:
+        url_text = format_provider_url_for_display(
+            p.base_url,
+            resolve_provider_url_display(p, url_display),
+        )
+        if url_text is None:
+            return ""
+        return f"{prefix}URL：`{url_text}`\n"
+
     lines: list[str] = [
         "## 📡 生图站点状态\n\n",
         f"全局模式：`{global_mode}`\n\n",
@@ -133,7 +198,7 @@ def build_providers_status_markdown(
                 f"**{p.name}** {_viable_marker(p)} {_mode_status(p)}\n\n"
                 f"- 模型：{_model_str(p)}\n"
                 f"- 请求策略：{_request_policy_str(p)}\n"
-                f"- URL：`{p.base_url}`\n"
+                f"{_url_line(p, '- ')}"
                 f"- 计费：{_billing_str(p)}\n"
                 f"- 健康：{_health_str(p)}\n\n"
             )
@@ -157,7 +222,7 @@ def build_providers_status_markdown(
                 f"{_mode_status(p)}{cooldown_str}\n\n"
                 f"   模型：{_model_str(p)}\n"
                 f"   请求策略：{_request_policy_str(p)}\n"
-                f"   URL：`{p.base_url}`\n"
+                f"{_url_line(p, '   ')}"
                 f"   计费：{_billing_str(p)}\n"
                 f"   健康：{_health_str(p)}\n\n"
             )
@@ -171,7 +236,7 @@ def build_providers_status_markdown(
                 f"**{p.name}** {_viable_marker(p)} {_mode_status(p)}\n\n"
                 f"- 模型：{_model_str(p)}\n"
                 f"- 请求策略：{_request_policy_str(p)}\n"
-                f"- URL：`{p.base_url}`\n"
+                f"{_url_line(p, '- ')}"
                 f"- 计费：{_billing_str(p)}\n"
                 f"- 健康：{_health_str(p)}\n\n"
             )

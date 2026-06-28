@@ -98,7 +98,11 @@ from .image2_core.billing.messages import (
 from .image2_core.billing.config import BillingConfig
 from .image2_core.billing.records import BillingRecords
 from .image2_core.billing.tracker import BillingObservation, BillingTracker
-from .image2_core.providers.messages import build_providers_status_markdown
+from .image2_core.providers.messages import (
+    build_providers_status_markdown,
+    format_provider_url_for_display,
+    normalize_provider_url_display,
+)
 from .image2_core.providers.manager import (
     ImageAPIProviderConfig,
     ProviderManager,
@@ -196,7 +200,7 @@ class PlanSessionFilter(SessionFilter):
     "gpt_image2",
     "233",
     "通过 OpenAI 兼容 API 调用 GPT Image2 完成图片生成与编辑",
-    "0.5.0",
+    "0.5.1",
 )
 class GPTImage2Plugin(Star):
     PLAN_WAITER_TIMEOUT_GRACE = 10
@@ -2187,7 +2191,11 @@ class GPTImage2Plugin(Star):
         try:
             provider_configs = self._provider_manager.get_image_api_provider_configs()
         except ValueError as e:
-            await self._send_text(event, str(e), action=f"{action}-config-error")
+            await self._send_text(
+                event,
+                self._safe_markdown_preview(str(e), limit=320),
+                action=f"{action}-config-error",
+            )
             return []
 
         global_mode = normalize_api_mode(self.config.get("api_mode", "images"))
@@ -2376,7 +2384,8 @@ class GPTImage2Plugin(Star):
                 )
                 await self._send_text(
                     event,
-                    f"## ⚠️ GPT Image2 调用失败\n\n`{e}`",
+                    "## ⚠️ GPT Image2 调用失败\n\n"
+                    f"`{self._safe_markdown_preview(str(e), limit=320)}`",
                     action=f"{action}-unexpected-error",
                     task_anchor=True,
                 )
@@ -2489,6 +2498,18 @@ class GPTImage2Plugin(Star):
             self._provider_manager.prompt_rewrite_guard_enabled("responses")
         )
         current_mode = normalize_api_mode(cfg.get("api_mode", "images"))
+        provider_url_display = normalize_provider_url_display(
+            cfg.get("provider_url_display", "masked")
+        )
+        primary_url_display = cfg.get("primary_url_display") or provider_url_display
+        base_url_display = format_provider_url_for_display(
+            cfg.get("base_url"), primary_url_display
+        )
+        base_url_row = (
+            f"| Base URL | `{base_url_display}` |\n"
+            if base_url_display is not None
+            else ""
+        )
         primary_provider_name = str(cfg.get("primary_provider_name", "") or "primary")
         authoritative_enabled = normalize_bool(
             cfg.get("authoritative_fallback_enabled"), default=False
@@ -2538,7 +2559,8 @@ class GPTImage2Plugin(Star):
             f"| 项目 | 值 |\n"
             f"|------|------|\n"
             f"| API Key | {api_key_set} |\n"
-            f"| Base URL | `{cfg.get('base_url', '未设置')}` |\n"
+            f"{base_url_row}"
+            f"| 站点 URL 展示 | `{provider_url_display}` |\n"
             f"| 全局 API 模式 | `{current_mode}` |\n"
             f"| 主站点名称 | `{primary_provider_name}` |\n"
             f"| Images 模型 | `{cfg.get('model', 'gpt-image-2')}` |\n"
@@ -2919,7 +2941,8 @@ class GPTImage2Plugin(Star):
         except ValueError as e:
             yield await self._text_result(
                 event,
-                f"## ⚠️ 无法获取站点配置\n\n{str(e)}",
+                "## ⚠️ 无法获取站点配置\n\n"
+                f"{self._safe_markdown_preview(str(e), limit=320)}",
                 action="providers-config-error",
             )
             return
@@ -2936,6 +2959,7 @@ class GPTImage2Plugin(Star):
                 global_mode=global_mode,
                 now=now,
                 billing_stats=billing_stats,
+                url_display=self.config.get("provider_url_display", "masked"),
             ),
             action="providers",
         )
@@ -2994,7 +3018,8 @@ class GPTImage2Plugin(Star):
             except ValueError as e:
                 yield await self._text_result(
                     event,
-                    f"## ⚠️ 无法获取站点配置\n\n{str(e)}",
+                    "## ⚠️ 无法获取站点配置\n\n"
+                    f"{self._safe_markdown_preview(str(e), limit=320)}",
                     action="balance-set-config-error",
                 )
                 return
@@ -3089,7 +3114,8 @@ class GPTImage2Plugin(Star):
             )
             yield await self._text_result(
                 event,
-                f"## ⚠️ 无法获取站点配置\n\n{str(e)}",
+                "## ⚠️ 无法获取站点配置\n\n"
+                f"{self._safe_markdown_preview(str(e), limit=320)}",
                 action="balance-config-error",
             )
             return
@@ -3239,7 +3265,7 @@ class GPTImage2Plugin(Star):
                 config=self.config,
                 failures_path=failures_path,
                 plugin_name=plugin_name,
-                plugin_version="0.5.0",
+                plugin_version="0.5.1",
                 generated_at=timestamp,
             )
         except Exception as e:
@@ -3354,7 +3380,8 @@ class GPTImage2Plugin(Star):
             )
             await self._send_text(
                 next_event,
-                f"## ⚠️ 模型调用失败\n\n`{e}`\n\n"
+                "## ⚠️ 模型调用失败\n\n"
+                f"`{self._safe_markdown_preview(str(e), limit=320)}`\n\n"
                 "- 发送 `/plan retry` 重试上一条 Plan 输入\n"
                 "- 或发送 `/plan <内容>` 继续补充\n"
                 "- 或发送 `/plan quit` 退出",
@@ -3529,7 +3556,11 @@ class GPTImage2Plugin(Star):
         try:
             plan_client = self._get_plan_client(plan_config)
         except ValueError as e:
-            yield await self._text_result(event, str(e), action="plan-config-error")
+            yield await self._text_result(
+                event,
+                self._safe_markdown_preview(str(e), limit=320),
+                action="plan-config-error",
+            )
             return
 
         # 创建会话，并记录随 plan 命令附带/引用的参考图。
@@ -3947,13 +3978,15 @@ class GPTImage2Plugin(Star):
             )
             sent = await self._send_proactive_message(
                 event.unified_msg_origin,
-                f"## ⚠️ Plan 模式发生错误\n\n`{e}`",
+                "## ⚠️ Plan 模式发生错误\n\n"
+                f"`{self._safe_markdown_preview(str(e), limit=320)}`",
                 action="plan-error",
             )
             if not sent:
                 await self._send_text(
                     event,
-                    f"## ⚠️ Plan 模式发生错误\n\n`{e}`",
+                    "## ⚠️ Plan 模式发生错误\n\n"
+                    f"`{self._safe_markdown_preview(str(e), limit=320)}`",
                     action="plan-error-fallback",
                 )
         finally:

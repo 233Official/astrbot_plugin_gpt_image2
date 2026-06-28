@@ -20,6 +20,8 @@ from typing import Any
 import httpx
 from astrbot.api import logger
 
+from ..privacy import redact_url_for_user
+
 
 @dataclass
 class ImageParams:
@@ -171,7 +173,7 @@ class GPTImageClient:
         if not text:
             return "repr('')", False
         # 多取一小段，确保边界附近的正则脱敏有足够上下文，最终截断也更准确。
-        preview = text[: limit + 100]
+        preview = redact_url_for_user(text[: limit + 100])
         import re as _re
 
         preview = _re.sub(
@@ -382,7 +384,8 @@ class GPTImageClient:
                 try:
                     body = json.loads(body)
                 except json.JSONDecodeError:
-                    return f"HTTP {status_code} (响应体首部: {body[:200]})"
+                    preview = redact_url_for_user(body[:200])
+                    return f"HTTP {status_code} (响应体首部: {preview})"
 
             if isinstance(body, dict):
                 err = body.get("error", {})
@@ -407,7 +410,7 @@ class GPTImageClient:
     ) -> str:
         """构建包含异常类型和请求上下文的网络错误，不泄露 API Key。"""
         error_type = type(error).__name__
-        detail = str(error).strip()
+        detail = redact_url_for_user(str(error).strip())
 
         if isinstance(error, httpx.TimeoutException):
             reason = f"请求超时（timeout={self.timeout}s）"
@@ -427,7 +430,7 @@ class GPTImageClient:
 
         return (
             f"网络请求失败（{error_type}）：{reason}；"
-            f"url={url}；elapsed_ms={elapsed_ms}"
+            f"url={redact_url_for_user(url)}；elapsed_ms={elapsed_ms}"
         )
 
     # ── Images API ──────────────────────────────────────────────

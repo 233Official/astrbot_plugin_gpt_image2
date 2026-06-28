@@ -28,6 +28,7 @@ from time import time
 from astrbot.api import logger
 
 from ..billing.config import BillingConfig, parse_billing_config
+from ..privacy import redact_url_for_user
 
 
 # ── Utility formatting functions ─────────────────────────────────
@@ -35,7 +36,7 @@ from ..billing.config import BillingConfig, parse_billing_config
 
 def safe_text_preview(text: str, *, limit: int = 160) -> str:
     """Compact safe text preview for diagnostics."""
-    normalized = " ".join(text.replace("\x00", "?").split())
+    normalized = " ".join(redact_url_for_user(text).replace("\x00", "?").split())
     if len(normalized) > limit:
         normalized = normalized[:limit] + "..."
     return repr(normalized)
@@ -43,11 +44,19 @@ def safe_text_preview(text: str, *, limit: int = 160) -> str:
 
 def safe_markdown_preview(text: str, *, limit: int = 160) -> str:
     """Compact provider errors for Markdown cards without inline-code breakage."""
-    normalized = " ".join(str(text).replace("\x00", "?").split())
+    normalized = " ".join(redact_url_for_user(text).replace("\x00", "?").split())
     normalized = normalized.replace("`", "'")
     if len(normalized) > limit:
         normalized = normalized[:limit].rstrip() + "..."
     return normalized or "-"
+
+
+def normalize_optional_provider_url_display(value: object) -> str:
+    """Return a valid optional URL display override, or empty string to inherit."""
+    mode = str(value or "").strip().lower()
+    if mode in {"masked", "hidden", "full"}:
+        return mode
+    return ""
 
 
 def format_duration(seconds: int) -> str:
@@ -80,6 +89,7 @@ class ImageAPIProviderConfig:
     adaptive: bool = True
     billing: BillingConfig | None = None
     force_single_image_requests: bool = False
+    url_display: str = ""
 
     @property
     def images_supported(self) -> bool:
@@ -1180,6 +1190,9 @@ class ProviderManager:
             force_single_image_requests=normalize_bool(
                 data.get("force_single_image_requests"), default=False
             ),
+            url_display=normalize_optional_provider_url_display(
+                data.get("url_display")
+            ),
         )
 
     def get_image_api_provider_configs(self) -> list[ImageAPIProviderConfig]:
@@ -1215,6 +1228,9 @@ class ProviderManager:
                     force_single_image_requests=normalize_bool(
                         self.config.get("primary_force_single_image_requests"),
                         default=False,
+                    ),
+                    url_display=normalize_optional_provider_url_display(
+                        self.config.get("primary_url_display")
                     ),
                 )
             )
@@ -1277,6 +1293,9 @@ class ProviderManager:
                                 "authoritative_fallback_force_single_image_requests"
                             ),
                             default=False,
+                        ),
+                        url_display=normalize_optional_provider_url_display(
+                            self.config.get("authoritative_fallback_url_display")
                         ),
                     )
             else:

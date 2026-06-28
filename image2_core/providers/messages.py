@@ -122,6 +122,11 @@ def build_providers_status_markdown(
     def _request_policy_str(p: ImageAPIProviderConfig) -> str:
         return "强制单图上游请求" if p.force_single_image_requests else "允许原生 n"
 
+    def _priority_str(p: ImageAPIProviderConfig) -> str:
+        if p.priority is None:
+            return "自动排序"
+        return f"手动优先级 {p.priority}"
+
     def _billing_str(p: ImageAPIProviderConfig) -> str:
         stats_root = billing_stats if isinstance(billing_stats, dict) else {}
         providers = (
@@ -220,6 +225,7 @@ def build_providers_status_markdown(
             lines.append(
                 f"{idx}. **{p.name}** {_viable_marker(p)} "
                 f"{_mode_status(p)}{cooldown_str}\n\n"
+                f"   优先级：{_priority_str(p)}\n"
                 f"   模型：{_model_str(p)}\n"
                 f"   请求策略：{_request_policy_str(p)}\n"
                 f"{_url_line(p, '   ')}"

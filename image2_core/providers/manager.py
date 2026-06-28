@@ -87,6 +87,7 @@ class ImageAPIProviderConfig:
     configured_order: int
     role: str = "normal"  # "primary" | "normal" | "authoritative_fallback"
     adaptive: bool = True
+    priority: int | None = None
     billing: BillingConfig | None = None
     force_single_image_requests: bool = False
     url_display: str = ""
@@ -175,6 +176,22 @@ def normalize_bool(value: object, *, default: bool) -> bool:
     if isinstance(value, (int, float)):
         return bool(value)
     return str(value).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def normalize_provider_priority(value: object) -> int | None:
+    """Normalize optional manual provider priority; lower values rank first."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 def build_provider_id(
@@ -1133,6 +1150,13 @@ class ProviderManager:
         provider_adaptive = normalize_bool(
             data.get("adaptive"), default=provider_role != "authoritative_fallback"
         )
+        provider_priority = normalize_provider_priority(data.get("priority"))
+        if data.get("priority") not in (None, "") and provider_priority is None:
+            logger.warning(
+                "[GPTImage2] ignore invalid fallback API provider priority "
+                f"index={index} name={provider_name or '-'} "
+                f"value={data.get('priority')!r}"
+            )
 
         # Capabilities resolution
         capabilities = self.resolve_fallback_capabilities(data)
@@ -1184,6 +1208,7 @@ class ProviderManager:
             configured_order=index,
             role=provider_role,
             adaptive=provider_adaptive,
+            priority=provider_priority if provider_role == "normal" else None,
             billing=parse_provider_billing_config(
                 data.get("billing"), provider_name=provider_name
             ),
@@ -1384,9 +1409,15 @@ class ProviderManager:
         authoritative = [c for c in configs if c.role == "authoritative_fallback"]
         normal = [c for c in configs if c.role == "normal"]
 
-        normal = self.adaptive_sort_normal_providers(normal)
+        manual_priority = sorted(
+            [p for p in normal if p.priority is not None],
+            key=lambda p: (p.priority, p.configured_order),
+        )
+        adaptive_normal = self.adaptive_sort_normal_providers(
+            [p for p in normal if p.priority is None]
+        )
 
-        result = primary + normal + authoritative
+        result = primary + manual_priority + adaptive_normal + authoritative
         if [p.provider_id for p in result] != [p.provider_id for p in configs]:
             logger.info(
                 "[GPTImage2] provider priority reordered "

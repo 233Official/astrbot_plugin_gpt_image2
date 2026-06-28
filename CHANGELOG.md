@@ -6,6 +6,15 @@
 
 ---
 
+## Unreleased
+
+### Unreleased Added
+
+- 普通备用站点新增 `fallback_api_providers[].priority` 可选字段，主站失败后会先按手动优先级数值升序尝试普通备用站点；未设置 `priority` 的站点继续使用自适应排序，权威兜底站点仍固定最后。
+- `/image2 providers` 现在会展示普通备用站点是“手动优先级”还是“自动排序”，便于核对生效顺序。
+
+---
+
 ## v0.5.1 - 2026-06-25
 
 ### v0.5.1 Added

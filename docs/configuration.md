@@ -103,6 +103,7 @@
     "name": "backup-1",
     "base_url": "https://api-backup.example.com/v1",
     "api_key": "<api-key>",
+    "priority": 10,
     "capabilities": "images",
     "model": "gpt-image-2",
     "url_display": "hidden",
@@ -144,6 +145,7 @@
 | `name` | 站点显示名；建议每个备用站唯一 |
 | `base_url` | OpenAI 兼容 API 根路径 |
 | `api_key` | 备用站 API Key；省略时复用主站 Key |
+| `priority` | 可选手动优先级；数值越小越优先，设置后会排在未设置 `priority` 的自动排序站点之前 |
 | `capabilities` | `all` / `images` / `responses` / `both` |
 | `model` | Images API 模型 |
 | `responses_model` | Responses API 模型 |
@@ -151,6 +153,8 @@
 | `url_display` | 可选；`masked` / `hidden` / `full`，省略时继承 `provider_url_display` |
 | `force_single_image_requests` | 本次任务全局 `n > 1` 且命中该 Provider 时，是否强制拆成多次 `n=1` 上游请求 |
 | `billing` | 该 Provider 的费用观测配置；支持直接余额、总额减用量和固定参考成本，详见 [费用观测配置](./billing.md) |
+
+主站失败后，普通备用站点会先尝试设置了 `priority` 的站点，并按 `priority` 数值升序排列；没有设置 `priority` 的站点继续使用 `adaptive_provider_priority` 的自适应排序。`priority` 相同则按 JSON 数组中的配置顺序兜底。权威兜底站点仍固定最后，不受 `priority` 影响。
 
 `n` 是全局生成数量，不区分主站、备用站或权威兜底站。`force_single_image_requests` 只控制“命中某个 Provider 后，是否把该 Provider 的一次原生 `n` 请求拆成多次 `n=1` 上游请求”。它不会把整次任务的出图数量限制为 1；例如全局 `n=2` 时，开启后仍可能向同一 Provider 发两次 `n=1`，最终返回 2 张图。如果站点会按原生 `n` 扣费但实际只返回 1 张图，建议对该 Provider 开启 `force_single_image_requests`，避免原生 `n=2` 被站点扣两张但插件只收到一张。
 
